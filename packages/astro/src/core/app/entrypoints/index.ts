@@ -7,6 +7,8 @@ export {
 	type LogRequestPayload,
 } from '../base.js';
 export { fromRoutingStrategy, toRoutingStrategy } from '../common.js';
+export { BuildErrorHandler } from '../../errors/build-handler.js';
+export type { ErrorHandler } from '../../errors/handler.js';
 export { createConsoleLogger } from '../../logger/impls/console.js';
 export {
 	deserializeManifest,

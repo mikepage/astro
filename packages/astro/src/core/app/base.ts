@@ -191,6 +191,16 @@ export abstract class BaseApp<P extends Pipeline = AppPipeline> {
 		return new DefaultErrorHandler(this);
 	}
 
+	/**
+	 * Replaces the error handler used by this app. Adapters whose prerendering
+	 * runs through the production app (e.g. inside workerd) can install
+	 * `BuildErrorHandler` so render errors propagate and fail the build instead
+	 * of being rendered as 500 pages.
+	 */
+	public setErrorHandler(errorHandler: ErrorHandler): void {
+		this.#errorHandler = errorHandler;
+	}
+
 	public abstract isDev(): boolean;
 
 	/**

@@ -1,6 +1,6 @@
 import { env as globalEnv } from 'cloudflare:workers';
 import { compileImageConfig, isPrerender } from 'virtual:astro-cloudflare:config';
-import type { RenderOptions } from 'astro/app';
+import { BuildErrorHandler, type RenderOptions } from 'astro/app';
 import { createApp } from 'astro/app/entrypoint';
 import { setGetEnv } from 'astro/env/setup';
 import { createGetEnv } from '../utils/env.js';
@@ -35,6 +35,13 @@ declare global {
 type CfResponse = Awaited<ReturnType<Required<ExportedHandler<Env>>['fetch']>>;
 
 const app = createApp();
+
+if (isPrerender) {
+	// Match the default prerenderer's build-time error semantics: a page that
+	// throws before streaming starts must propagate the error (failing the
+	// build) instead of rendering a 500 page that would be written to disk.
+	app.setErrorHandler(new BuildErrorHandler(app));
+}
 
 export async function handle(
 	request: Request,
