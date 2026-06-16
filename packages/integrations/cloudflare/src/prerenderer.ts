@@ -82,7 +82,19 @@ export function createCloudflarePrerenderer({
 					port: 0, // Let the OS pick a free port
 					open: false,
 				},
-				plugins: [cfVitePlugin({ ...cfPluginConfig, viteEnvironment: { name: 'prerender' } })],
+				plugins: [
+					cfVitePlugin({
+						...cfPluginConfig,
+						viteEnvironment: { name: 'prerender' },
+						// Buffer the Worker's response body in-worker so that a page
+						// throwing mid-render surfaces as a real 500 (with a marker header)
+						// instead of a silently-truncated 200.
+						experimental: {
+							...cfPluginConfig.experimental,
+							bufferPreviewResponses: true,
+						},
+					}),
+				],
 			});
 
 			const address = previewServer.httpServer.address();
@@ -134,13 +146,12 @@ export function createCloudflarePrerenderer({
 				redirect: 'manual',
 			});
 
-			// Check for prerender errors surfaced by the workerd handler via header
-			// (the response body may be stripped by the Vite preview server).
-			// Only the header marks a failure: pages may intentionally return
-			// non-2xx responses while prerendering (e.g. a custom 404 page).
-			const prerenderError = response.headers.get('x-astro-prerender-error');
-			if (prerenderError) {
-				throw new Error(`Failed to prerender ${request.url}: ${prerenderError}`);
+			// The Cloudflare Vite plugin marks responses where the Worker threw
+			// (including a buffered mid-render streaming error) with this header,
+			// distinct from a response the page intentionally returned with a
+			// non-2xx status (e.g. a custom 404 page). The body carries the error.
+			if (response.headers.get('x-vite-cloudflare-worker-error')) {
+				throw new Error(`Failed to prerender ${request.url}: ${await response.text()}`);
 			}
 
 			return response;

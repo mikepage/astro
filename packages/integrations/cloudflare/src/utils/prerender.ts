@@ -89,11 +89,12 @@ export async function handleStaticPathsRequest(app: BaseApp): Promise<Response> 
 /**
  * Handles a prerender request, rendering the specified page.
  *
- * The response body is fully buffered before being returned so that streaming
- * errors (e.g. a component throwing mid-render) are caught inside workerd and
- * surfaced as a 500 response.  Without buffering, the HTTP layer commits
- * status 200 before the stream completes, and a mid-stream error silently
- * truncates the HTML output.
+ * Response-body buffering and error surfacing are handled by the Cloudflare
+ * Vite plugin (`experimental.bufferPreviewResponses`): it buffers the body
+ * in-worker so a mid-render streaming error becomes a 500 with a marker header
+ * rather than a silently-truncated 200. A pre-stream render failure is turned
+ * into a throw by `installPrerenderErrorPropagation`, which the plugin's
+ * wrapper likewise surfaces. So here we simply render and return.
  */
 export async function handlePrerenderRequest(app: BaseApp, request: Request): Promise<Response> {
 	const headers = new Headers();
@@ -106,26 +107,7 @@ export async function handlePrerenderRequest(app: BaseApp, request: Request): Pr
 		method: 'GET',
 		headers,
 	});
-	// Buffer the full body to catch streaming errors before the HTTP layer
-	// commits a 200 status.
-	try {
-		const response = await app.render(prerenderRequest, { routeData });
-		const bufferedBody = await response.arrayBuffer();
-		return new Response(bufferedBody, {
-			status: response.status,
-			statusText: response.statusText,
-			headers: response.headers,
-		});
-	} catch (err: unknown) {
-		const message = err instanceof Error ? err.message : String(err);
-		return new Response(message, {
-			status: 500,
-			headers: {
-				'Content-Type': 'text/plain',
-				'x-astro-prerender-error': message,
-			},
-		});
-	}
+	return app.render(prerenderRequest, { routeData });
 }
 
 export function isStaticImagesRequest(request: Request): boolean {
